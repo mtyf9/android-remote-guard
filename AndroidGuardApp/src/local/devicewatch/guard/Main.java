@@ -20,11 +20,19 @@ public class Main extends Activity {
         });
         Button test=new Button(this); test.setText("向服务端发送测试通知"); box.addView(test);
         test.setOnClickListener(v->startForegroundService(new Intent(this,Guard.class).setAction("test")));
+        Button pin=new Button(this);pin.setText("设置或关闭第二层 PIN 锁");box.addView(pin);
+        pin.setOnClickListener(v->{
+            if(!android.provider.Settings.canDrawOverlays(this)){
+                startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    android.net.Uri.parse("package:"+getPackageName())));return;
+            }
+            startForegroundService(new Intent(this,Guard.class).putExtra("pin_setup",true));
+        });
         setContentView(box);
     }
     protected void onResume(){
         super.onResume();
-        if (Guard.armed(this)) startForegroundService(new Intent(this,Guard.class));
+        if (Guard.armed(this)||PinLock.enabled(this)) startForegroundService(new Intent(this,Guard.class));
         getSharedPreferences("guard",0).registerOnSharedPreferenceChangeListener(modeListener);
         render();
     }

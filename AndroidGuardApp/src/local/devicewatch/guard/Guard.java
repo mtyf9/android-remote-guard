@@ -100,6 +100,7 @@ public class Guard extends Service {
         pending=openOrCreateDatabase("outbox.db",MODE_PRIVATE,null);
         pending.execSQL("CREATE TABLE IF NOT EXISTS alerts(id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL)");
         migrateQueue();
+        new PinLock(this);
         watch();
         worker.scheduleWithFixedDelay(this::flush,3,60,TimeUnit.SECONDS);
     }
@@ -114,9 +115,13 @@ public class Guard extends Service {
             if(motion==null||!sensors.requestTriggerSensor(trigger,motion))Log.w("AndroidRemoteGuard","Motion sensor unavailable");
         }else{release();}
     }
+    String armedLockMode(){return PinLock.enabled(this)?"disable":"set";}
     void release(){sensors.unregisterListener(pickup);if(motion!=null)sensors.cancelTriggerSensor(trigger,motion);if(wake.isHeld())wake.release();}
     public int onStartCommand(Intent i,int flags,int id){
         lastStart=id;
+        if(i!=null && i.hasExtra("pin_setup")){
+            PinLock.active.show(armedLockMode()); return START_STICKY;
+        }
         watch();
         if(i!=null && i.hasExtra("report_mode") && i.getAction()==null)worker.execute(this::flush);
         if(i!=null && i.getAction()!=null){
@@ -194,7 +199,7 @@ public class Guard extends Service {
                     if(destroyed)return;
                     if(ack!=null && ack.equals(prefs.getString("mode_ack",null)))
                         prefs.edit().remove("mode_ack").commit();
-                    if(!armed(this) && !prefs.contains("mode_ack") && start==lastStart)stopSelfResult(start);
+                    if(!PinLock.enabled(this) && !PinLock.active.visible() && !armed(this) && !prefs.contains("mode_ack") && start==lastStart)stopSelfResult(start);
                 });
             }
         }catch(Exception ex){Log.w("AndroidRemoteGuard","Delivery pending: "+ex.getClass().getSimpleName());}
@@ -225,5 +230,5 @@ public class Guard extends Service {
         }
         throw new IOException("No reachable server");
     }
-    public void onDestroy(){destroyed=true;if(watching)release();worker.execute(()->pending.close());worker.shutdown();super.onDestroy();}
+    public void onDestroy(){destroyed=true;if(PinLock.active!=null)PinLock.active.close();if(watching)release();worker.execute(()->pending.close());worker.shutdown();super.onDestroy();}
 }

@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent / "data"
 os.umask(0o077)
 TOKEN = (ROOT / "token").read_text().strip()
-NAMES = {"armed": "已布防", "disarmed": "已撤防", "movement": "检测到机身移动",
+NAMES = {"pin_error": "第二层锁 PIN 输入错误", "armed": "已布防", "disarmed": "已撤防", "movement": "检测到机身移动",
          "plug": "USB 供电线已接入", "unplug": "USB 供电线已断开", "screen_off": "屏幕已关闭",
          "home": "Home 键按下", "back": "返回键按下", "menu": "菜单或最近任务键按下",
          "power": "电源键按下", "test": "测试通知", "offline": "心跳超时，受控端 已离线",

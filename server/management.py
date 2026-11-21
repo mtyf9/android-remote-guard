@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import subprocess
+import sys
 from pathlib import Path
 import threading
 import time
@@ -171,7 +172,7 @@ def start(root, db, lock, names):
                     remote_status = "连接失败，请检查两端的 IPv4 连接 和受控端的 ADB 授权"
                     return
                 with (root / "scrcpy.log").open("wb") as log:
-                    session = subprocess.Popen([SCRCPY,"-s",DEVICE,"--no-audio","--no-power-on"],
+                    session = subprocess.Popen([sys.executable,str(Path(__file__).resolve().parents[1]/"tools/remote_session.py"),ADB,DEVICE,SCRCPY,"-s",DEVICE,"--no-audio","--no-power-on"],
                         cwd=TOOLS,env=dict(os.environ,ADB=ADB),stdin=subprocess.DEVNULL,stdout=log,stderr=log)
                 remote_status = "远控窗口已在服务端桌面运行"
             except (OSError,subprocess.TimeoutExpired):

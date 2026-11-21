@@ -6,7 +6,7 @@
 
 ## 1. 填写本地配置
 
-将根目录的 `config.example.json` 复制为 `config.local.json`。在服务端填写该文件。示例地址均须替换。
+在运行接收服务的主机上，将项目根目录的 `config.example.json` 复制为同目录的 `config.local.json`，与 `README.md` 同级。例如，项目部署在 `~/scripts/android-remote-guard/` 时，服务端读取 `~/scripts/android-remote-guard/config.local.json`。示例地址均须替换。`server/data/` 用于安装时生成的数据；`tools/windows/config.local.json` 供可选的 Windows 连接工具使用。
 
 | 字段 | 用途 |
 |---|---|
@@ -62,3 +62,17 @@ python3 tools/server/provision_device.py
 - **root 与模块**：完整部署需要受控端已 root，并安装本项目的 Magisk 模块。仅装 APK 无法采集模块提供的实体按键及物理插拔线事件。请保留可恢复的本地管理方式。
 - **网络与权限**：将网络 ADB 限制到可信网络接口及已授权的管理设备。不要向公共 Wi-Fi 或公网开放 5555。心跳上报另用 TLS 端口 18761；管理页只监听回环地址。
 - **数据与恢复**：受控端本地 SQLite 保留未获确认的告警，服务恢复后按事件 ID 去重补传。服务端数据库、私钥及 SendKey 位于 `server/data/`，请私下备份。两端时钟应开启自动校时。
+
+## 可选的第二层 PIN 锁
+
+受控端应用 1.8 起可在主界面设置 6–12 位本地 PIN。需要授予悬浮窗权限。自定义键盘每输入一位显示一个星号，数字始终隐藏。点 ✓ 提交，点 ← 删除最后一位及对应星号。启用、熄屏或布防服务重新启动后会出现锁面板。通过验证后可在主界面关闭此功能。PIN 验证失败会进入已有告警缓存与推送流程，撤防时也会上报。错误次数越多，重试等待越长。
+
+第二层锁用于遮挡普通应用界面。Android 将悬浮窗放在部分系统界面之下；系统设置、通知栏、强停、root 和启动阶段均属于它的保护边界。它不能提供 Android 系统凭据的数据加密保护。
+
+Windows 连接脚本和服务端网页远控都支持自动认证。启用 PIN 前，每台控制电脑先使用自己的已授权 ADB，核对受控端序列号，再运行一次：
+
+```sh
+python tools/remote_session.py adb DEVICE_IP:5555 --pair
+```
+
+将 adb 换成当前使用的 adb 路径，DEVICE_IP 换成受控端地址；macOS 和 Linux 可用 python3。配对需要已授权的 root shell。每台电脑独立生成随机密钥，副本保存在该用户的 ~/.android-remote-guard/ 和手机应用私有目录。不要分享这些文件。通过随机挑战和 HMAC 验证后打开 scrcpy，运行期间每 8 秒续期，退出时立即重新上锁，意外断联约 30 秒后恢复锁面板。远控使用同一物理显示会话，授权期间现场屏幕也可能显示内容。
