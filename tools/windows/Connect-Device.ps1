@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$config = Get-Content (Join-Path $PSScriptRoot '../config.local.json') -Raw | ConvertFrom-Json
+$config = Get-Content (Join-Path $PSScriptRoot 'config.local.json') -Raw | ConvertFrom-Json
 $deviceIp = $config.device_ip
 $target = "${deviceIp}:5555"
 $scrcpy = (Get-Command scrcpy.exe).Source

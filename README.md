@@ -31,7 +31,8 @@ AndroidRemoteGuard 使用 IPv4 网络为无人值守的 Android 设备提供远�
 | 受控端应用 | [AndroidGuardApp](AndroidGuardApp/) | 布防开关、移动感应、心跳、断线补传与启动恢复 |
 | 受控端 root 模块 | [AndroidGuardModule](AndroidGuardModule/) | 监听实体电源及导航键、USB 线在位状态，并记录充电变化 |
 | 服务端 | [server](server/) | TLS 接收、SQLite 日志、本地管理页、系统通知与已读同步、通知端推送、远控 |
-| 运维工具 | [tools](tools/) | 受控端配对、Windows 一键连接和管理页 SSH 隧道 |
+| 服务端部署工具 | [tools/server](tools/server/) | 在服务端构建 APK、配对受控端和安装模块 |
+| Windows 可选工具 | [tools/windows](tools/windows/) | 从额外的 Windows 电脑远控、访问管理页或构建 APK |
 | 通知端 | Server酱³ 客户端 | 接收服务端转发的告警，客户端由第三方提供 |
 
 **[部署指南与注意事项](docs/deployment.md)** 包含依赖、构建、配置、root 模块安装、首次测试以及无人值守冷启动的锁屏密码要求。

@@ -1,0 +1,6 @@
+{
+  "device_name": "值守手机",
+  "device_ip": "100.64.0.10",
+  "device_serial": "REPLACE_WITH_DEVICE_SERIAL",
+  "ssh_host": "guard-server"
+}

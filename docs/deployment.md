@@ -1,8 +1,10 @@
-# 部署
+# 在服务端部署
+
+只需一台服务端电脑和一部受控 Android 设备。以下命令均在服务端的项目根目录执行。只有需要在另一台 Windows 电脑上操作时，才使用文末的可选工具。
 
 ## 1. 填写本地配置
 
-将根目录的 `config.example.json` 复制为 `config.local.json`。在服务端与 Windows 工具所在的检出目录各放一份。示例地址均须替换。
+将根目录的 `config.example.json` 复制为 `config.local.json`。在服务端填写该文件。示例地址均须替换。
 
 | 字段 | 用途 |
 |---|---|
@@ -10,7 +12,6 @@
 | `device_ip` | 控制端可访问的受控端 IPv4 地址，ADB 监听 TCP 5555 |
 | `device_serial` | 在已确认身份的设备上执行 `adb shell getprop ro.serialno` 得到的序列号 |
 | `server_ips` | 受控端可访问的服务端 IPv4 地址列表，首项优先，也是接收器证书的 IP SAN |
-| `ssh_host` | Windows 端可用的 SSH 别名或登录目标。可选 `ssh_identity` 指定私钥路径 |
 
 ## 2. 准备服务端
 
@@ -24,12 +25,24 @@ python3 server/install.py
 
 ## 3. 构建并配对受控端
 
-Windows 上准备 PowerShell 7.3+、JDK 17 或 21、Android SDK platform 35 和 build-tools 35.0.0，设置 `ANDROID_HOME`，让 `java`、`javac`、`jar`、`keytool`、`adb` 在 PATH 中可用。运行 `AndroidGuardApp/Build-App.ps1`，首次按提示创建签名密钥。产物位于 `AndroidGuardApp/build/AndroidRemoteGuard.apk`。备份签名密钥供以后覆盖升级使用。将 APK 安装在选定的受控端。
+已有与受控端安装版本签名一致的 APK 时，直接使用该 APK。需要自行构建时，在服务端准备 JDK 17 或 21、Android SDK Platform 35 和 Build Tools 35.0.0，设置 `ANDROID_HOME` 并将 JDK 命令加入 PATH：
+
+```sh
+bash tools/server/build_app.sh
+```
+
+首次构建会提示创建签名密钥。请私下备份密钥供后续覆盖升级使用。将产物安装到已获 ADB 授权的手机（也可先用 USB 安装）：
+
+```sh
+server/scrcpy/adb devices -l
+read -r device    # 输入上一行列表中的设备连接标识
+server/scrcpy/adb -s "$device" install -r AndroidGuardApp/build/AndroidRemoteGuard.apk
+```
 
 先配置可信 IPv4 网络和 ADB 授权，验证服务端能够连接受控端的 TCP 5555。异地组网可以选用 Tailscale。项目的按键模块**不会配置 ADB 的网络监听或防火墙**。随后从服务端的项目根目录运行：
 
 ```sh
-python3 tools/provision_device.py
+python3 tools/server/provision_device.py
 ```
 
 该脚本验证序列号，通过已授权的 root shell 将接收证书、令牌和设备配置放入应用私有目录，并安装 `AndroidGuardModule/` 到 Magisk 模块目录。受控端重启后模块生效。模块按输入驱动名称过滤实体按键，并读取 USB 在位和电池节点；更换机型时请先核对 `service.sh` 中的驱动名称和 sysfs 节点，再逐项实测。只验证过 Android 9 设备的原部署流程。
@@ -38,7 +51,11 @@ python3 tools/provision_device.py
 
 在服务端浏览器打开 `http://127.0.0.1:18762/`。允许「受控端 布防」系统通知，在受控端点「向服务端发送测试通知」。在通知端安装 Server酱³，使用自己的 SendKey 登录，并在管理页保存对应 SendKey。实测通知端锁屏、使用移动数据时能否收到测试告警。
 
-管理页支持暂停和开始布防、查看设备确认状态、设置心跳超时、查看和清理日志，以及启动服务端桌面上的远控窗口。Windows 上的 `tools/Connect-Device.ps1` 需要 scrcpy 在 PATH 中；`tools/Open-Dashboard.ps1` 通过 SSH 转发服务端管理页。两者均可直接运行。
+管理页支持暂停和开始布防、查看设备确认状态、设置心跳超时、查看和清理日志，以及启动服务端桌面上的远控窗口。
+
+## 可选：在另一台 Windows 电脑上操作
+
+[Windows 工具说明](../tools/windows/README.md)介绍了连接受控端、打开管理页及构建 APK 三个独立入口。服务端日常运行无需启动这些工具。
 
 ## 注意事项
 

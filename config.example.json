@@ -5,6 +5,5 @@
   "server_ips": [
     "100.64.0.20",
     "192.0.2.20"
-  ],
-  "ssh_host": "guard-server"
+  ]
 }
