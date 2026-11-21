@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 program = Path(__file__).resolve().parent
-if not (program / "DeviceWatchAlerts.app/Contents/MacOS/DeviceWatchAlerts").is_file():
+if not (program / "AndroidRemoteGuardAlerts.app/Contents/MacOS/AndroidRemoteGuardAlerts").is_file():
     subprocess.run([sys.executable,str(program / "install_desktop.py")],check=True)
 root = program / "data"
 os.umask(0o077)
@@ -19,7 +19,7 @@ if not (root / "token").exists():
 if not (root / "cert.pem").exists():
     cfg = root / "openssl.cnf"
     cfg.write_text("[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n"
-                   "[dn]\nCN=DeviceWatch\n[ext]\nsubjectAltName=" + ",".join("IP:"+ip for ip in SERVER_IPS) + "\n"
+                   "[dn]\nCN=AndroidRemoteGuard\n[ext]\nsubjectAltName=" + ",".join("IP:"+ip for ip in SERVER_IPS) + "\n"
                    "basicConstraints=critical,CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\n"
                    "extendedKeyUsage=serverAuth\n")
     subprocess.run(["/usr/bin/openssl","req","-x509","-nodes","-newkey","rsa:2048",

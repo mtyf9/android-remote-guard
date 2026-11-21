@@ -18,11 +18,17 @@ AndroidRemoteGuard 使用 IPv4 网络为无人值守的 Android 设备提供远�
 
 当两端位于不同网络且现场路由器不可配置时，可以让受控端和服务端加入同一 tailnet，并在 `device_ip` 和 `server_ips` 中使用各自的 Tailscale IPv4 地址。这是本项目实测过的一种部署方式。已有可达的 IPv4 局域网或其他可信 VPN 时，可以直接使用现有网络。
 
+## 受控端权限
+
+- **AndroidGuardApp** 以普通应用身份运行。显著移动检测使用 Android 传感器接口；心跳、告警缓存和补传由应用完成。接收器上的 `android.permission.DUMP` 用于限制谁能向它发送指令。
+- **AndroidGuardModule** 由 Magisk 以 root 身份运行。模块从内核输入设备读取实体按键，从电源驱动节点检测 USB 线缆在位状态及充电变化，再将事件交给应用。
+- **首次配对**也有权限要求。当前配对工具使用 root shell 将服务端证书、令牌和配置写入应用私有目录，并安装模块。因此，APK 的基础监控运行时无需 root，但本仓库提供的完整部署流程需要 root。
+
 ## 项目组成
 
 | 部分 | 目录 | 职责 |
 |---|---|---|
-| 受控端应用 | [android](android/) | 布防开关、移动感应、心跳、断线补传与启动恢复 |
+| 受控端应用 | [AndroidGuardApp](AndroidGuardApp/) | 布防开关、移动感应、心跳、断线补传与启动恢复 |
 | 受控端 root 模块 | [AndroidGuardModule](AndroidGuardModule/) | 监听实体电源及导航键、USB 线在位状态，并记录充电变化 |
 | 服务端 | [server](server/) | TLS 接收、SQLite 日志、本地管理页、系统通知与已读同步、通知端推送、远控 |
 | 运维工具 | [tools](tools/) | 受控端配对、Windows 一键连接和管理页 SSH 隧道 |
@@ -33,3 +39,5 @@ AndroidRemoteGuard 使用 IPv4 网络为无人值守的 Android 设备提供远�
 布防时约每分钟发送心跳，服务端默认在 10 分钟后报告失联。撤防时发送最后一次状态确认，随后停止心跳。服务端下发的开关操作收到设备确认后更新页面。历史告警分别显示发生和接收时间。
 
 开源许可见 [MIT License](LICENSE)。
+
+项目命名约定见[命名规范](docs/naming.md)。

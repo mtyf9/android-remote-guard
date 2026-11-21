@@ -24,12 +24,12 @@ python3 server/install.py
 
 ## 3. 构建并配对受控端
 
-Windows 上准备 PowerShell 7.3+、JDK 17 或 21、Android SDK platform 35 和 build-tools 35.0.0，设置 `ANDROID_HOME`，让 `java`、`javac`、`jar`、`keytool`、`adb` 在 PATH 中可用。运行 `android/Build.ps1`，首次按提示创建签名密钥。产物位于 `android/build/AndroidRemoteGuard.apk`。备份签名密钥供以后覆盖升级使用。将 APK 安装在选定的受控端。
+Windows 上准备 PowerShell 7.3+、JDK 17 或 21、Android SDK platform 35 和 build-tools 35.0.0，设置 `ANDROID_HOME`，让 `java`、`javac`、`jar`、`keytool`、`adb` 在 PATH 中可用。运行 `AndroidGuardApp/Build-App.ps1`，首次按提示创建签名密钥。产物位于 `AndroidGuardApp/build/AndroidRemoteGuard.apk`。备份签名密钥供以后覆盖升级使用。将 APK 安装在选定的受控端。
 
 先配置可信 IPv4 网络和 ADB 授权，验证服务端能够连接受控端的 TCP 5555。异地组网可以选用 Tailscale。项目的按键模块**不会配置 ADB 的网络监听或防火墙**。随后从服务端的项目根目录运行：
 
 ```sh
-python3 tools/Provision-Device.py
+python3 tools/provision_device.py
 ```
 
 该脚本验证序列号，通过已授权的 root shell 将接收证书、令牌和设备配置放入应用私有目录，并安装 `AndroidGuardModule/` 到 Magisk 模块目录。受控端重启后模块生效。模块按输入驱动名称过滤实体按键，并读取 USB 在位和电池节点；更换机型时请先核对 `service.sh` 中的驱动名称和 sysfs 节点，再逐项实测。只验证过 Android 9 设备的原部署流程。

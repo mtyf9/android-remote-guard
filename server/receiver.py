@@ -32,7 +32,7 @@ def queue_desktop(event_id,kind):
 
 def wake_desktop():
     (ROOT/"desktop-wake").touch()
-    subprocess.Popen(["/usr/bin/open","-gj",str(ROOT.parent/"DeviceWatchAlerts.app")],
+    subprocess.Popen(["/usr/bin/open","-gj",str(ROOT.parent/"AndroidRemoteGuardAlerts.app")],
                      stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 
 def record(msg):

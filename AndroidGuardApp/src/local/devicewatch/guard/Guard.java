@@ -65,7 +65,7 @@ public class Guard extends Service {
             .setContentTitle(profile(this).optString("name","受控端")+" · 布防服务").setContentText("正在监测或投递事件")
             .setContentIntent(PendingIntent.getActivity(this,0,new Intent(this,Main.class),PendingIntent.FLAG_IMMUTABLE)).build());
         sensors=getSystemService(SensorManager.class);motion=sensors.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION);
-        wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"DeviceWatch:monitor");
+        wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"AndroidRemoteGuard:monitor");
         pending=openOrCreateDatabase("outbox.db",MODE_PRIVATE,null);
         pending.execSQL("CREATE TABLE IF NOT EXISTS alerts(id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL)");
         migrateQueue();
@@ -77,7 +77,7 @@ public class Guard extends Service {
         watching=armed(this);
         if(watching){
             wake.acquire();
-            if(motion==null||!sensors.requestTriggerSensor(trigger,motion))Log.w("DeviceWatch","Motion sensor unavailable");
+            if(motion==null||!sensors.requestTriggerSensor(trigger,motion))Log.w("AndroidRemoteGuard","Motion sensor unavailable");
         }else{release();}
     }
     void release(){if(motion!=null)sensors.cancelTriggerSensor(trigger,motion);if(wake.isHeld())wake.release();}
@@ -111,7 +111,7 @@ public class Guard extends Service {
             if(flushScheduled.compareAndSet(false,true)) worker.execute(()->{
                 try { flush(); } finally { flushScheduled.set(false); }
             });
-        } catch(JSONException ex){Log.e("DeviceWatch","Queue error",ex);}
+        } catch(JSONException ex){Log.e("AndroidRemoteGuard","Queue error",ex);}
     }
     void persist(JSONObject event)throws JSONException {
         pending.execSQL("INSERT OR IGNORE INTO alerts VALUES(?,?)",new Object[]{event.getString("id"),event.toString()});
@@ -127,7 +127,7 @@ public class Guard extends Service {
                 pending.setTransactionSuccessful();
             } finally {pending.endTransaction();}
             prefs.edit().remove("queue").commit();
-        } catch(JSONException ex){Log.e("DeviceWatch","Previous queue could not be read",ex);}
+        } catch(JSONException ex){Log.e("AndroidRemoteGuard","Previous queue could not be read",ex);}
     }
     JSONObject message(String kind)throws JSONException{
         Intent b=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
@@ -163,7 +163,7 @@ public class Guard extends Service {
                     if(!armed(this) && !prefs.contains("mode_ack") && start==lastStart)stopSelfResult(start);
                 });
             }
-        }catch(Exception ex){Log.w("DeviceWatch","Delivery pending: "+ex.getClass().getSimpleName());}
+        }catch(Exception ex){Log.w("AndroidRemoteGuard","Delivery pending: "+ex.getClass().getSimpleName());}
     }
     void send(JSONObject obj)throws Exception{
         if(sockets==null){
@@ -187,7 +187,7 @@ public class Guard extends Service {
                 try(OutputStream out=c.getOutputStream()){out.write(obj.toString().getBytes("UTF-8"));}
                 if(c.getResponseCode()!=204)throw new IOException("report rejected");
                 endpoint=address;return;
-            }catch(IOException ex){Log.w("DeviceWatch","Endpoint unavailable");}finally{c.disconnect();}
+            }catch(IOException ex){Log.w("AndroidRemoteGuard","Endpoint unavailable");}finally{c.disconnect();}
         }
         throw new IOException("No reachable server");
     }

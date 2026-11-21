@@ -3,7 +3,7 @@
 /server/data/
 /server/scrcpy/
 /server/*.app/
-/android/build/
+/AndroidGuardApp/build/
 __pycache__/
 *.apk
 *.idsig
@@ -13,3 +13,5 @@ __pycache__/
 *.sqlite3*
 *.log
 .DS_Store
+
+/android/build/

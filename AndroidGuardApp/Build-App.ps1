@@ -13,13 +13,18 @@ jar cf "$work/app.jar" -C "$work/classes" .
 Push-Location $work
 try { & "$tools/aapt.exe" add base.apk classes.dex } finally { Pop-Location }
 & "$tools/zipalign.exe" -f 4 "$work/base.apk" "$work/aligned.apk"
-$key = $env:DEVICEWATCH_KEYSTORE
-if (!$key) { $key = Join-Path $build 'devicewatch.p12' }
+$key = $env:ANDROID_REMOTE_GUARD_KEYSTORE
+if (!$key) { $key = $env:DEVICEWATCH_KEYSTORE }
+$oldKey = Join-Path $PSScriptRoot '../android/build/devicewatch.p12'
+if (!$key -and (Test-Path -LiteralPath $oldKey)) { $key = $oldKey }
+if (!$key) { $key = Join-Path $build 'android-remote-guard.p12' }
 if (!(Test-Path -LiteralPath $key)) {
-    keytool -genkeypair -keystore $key -storetype PKCS12 -alias devicewatch -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=DeviceWatch'
+    keytool -genkeypair -keystore $key -storetype PKCS12 -alias androidremoteguard -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=AndroidRemoteGuard'
 }
 $signArgs = @('sign','--ks',$key)
-if ($env:DEVICEWATCH_PASS_FILE) { $signArgs += @('--ks-pass',("file:" + $env:DEVICEWATCH_PASS_FILE)) }
+$passFile = $env:ANDROID_REMOTE_GUARD_PASS_FILE
+if (!$passFile) { $passFile = $env:DEVICEWATCH_PASS_FILE }
+if ($passFile) { $signArgs += @('--ks-pass',("file:" + $passFile)) }
 & "$tools/apksigner.bat" @signArgs --out "$build/AndroidRemoteGuard.apk" "$work/aligned.apk"
 & "$tools/apksigner.bat" verify "$build/AndroidRemoteGuard.apk"
 Write-Output "$build/AndroidRemoteGuard.apk"

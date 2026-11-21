@@ -4,9 +4,9 @@ import subprocess
 from pathlib import Path
 
 root = Path(__file__).resolve().parent
-bundle = root / "DeviceWatchAlerts.app"
+bundle = root / "AndroidRemoteGuardAlerts.app"
 contents = bundle / "Contents"
-binary = contents / "MacOS" / "DeviceWatchAlerts"
+binary = contents / "MacOS" / "AndroidRemoteGuardAlerts"
 binary.parent.mkdir(exist_ok=True, parents=True)
 subprocess.run(["xcrun","swiftc","-O",str(root/"DesktopAlerts.swift"),"-o",str(binary)],check=True)
 (contents/"Info.plist").write_bytes(plistlib.dumps(dict(
