@@ -21,6 +21,36 @@ public class Guard extends Service {
     final Map<String,Long> last=new HashMap<>();
     SensorManager sensors;
     Sensor motion;
+    Sensor accelerometer;
+    // Track the resting gravity vector so a tilt as well as a lift can trigger.
+    final float[] baseline = new float[3];
+    long previousSample;
+    int movingSamples;
+    final SensorEventListener pickup = new SensorEventListener(){
+        public void onAccuracyChanged(Sensor sensor,int accuracy){}
+        public void onSensorChanged(SensorEvent e){
+            if (!watching || destroyed) return;
+            long elapsed = e.timestamp - previousSample;
+            previousSample = e.timestamp;
+            if (elapsed <= 0 || elapsed > 1000000000L) {
+                System.arraycopy(e.values,0,baseline,0,3);
+                movingSamples = 0;
+                return;
+            }
+            double weight = 1 - Math.exp(-elapsed / 1000000000.0);
+            float distanceSquared = 0;
+            for (int axis=0; axis<3; axis++) {
+                float delta = e.values[axis] - baseline[axis];
+                distanceSquared += delta * delta;
+                baseline[axis] += weight * delta;
+            }
+            movingSamples = distanceSquared > 0.8f * 0.8f ? movingSamples + 1 : 0;
+            if (movingSamples == 2) {
+                long age = (SystemClock.elapsedRealtimeNanos() - e.timestamp) / 1000000L;
+                event("movement",System.currentTimeMillis() - Math.max(0,age));
+            }
+        }
+    };
     PowerManager.WakeLock wake;
     boolean watching;
     volatile boolean destroyed;
@@ -65,6 +95,7 @@ public class Guard extends Service {
             .setContentTitle(profile(this).optString("name","受控端")+" · 布防服务").setContentText("正在监测或投递事件")
             .setContentIntent(PendingIntent.getActivity(this,0,new Intent(this,Main.class),PendingIntent.FLAG_IMMUTABLE)).build());
         sensors=getSystemService(SensorManager.class);motion=sensors.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION);
+        accelerometer=sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"AndroidRemoteGuard:monitor");
         pending=openOrCreateDatabase("outbox.db",MODE_PRIVATE,null);
         pending.execSQL("CREATE TABLE IF NOT EXISTS alerts(id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL)");
@@ -77,10 +108,13 @@ public class Guard extends Service {
         watching=armed(this);
         if(watching){
             wake.acquire();
+            previousSample=0;
+            movingSamples=0;
+            if(accelerometer!=null && sensors.registerListener(pickup,accelerometer,100000))return;
             if(motion==null||!sensors.requestTriggerSensor(trigger,motion))Log.w("AndroidRemoteGuard","Motion sensor unavailable");
         }else{release();}
     }
-    void release(){if(motion!=null)sensors.cancelTriggerSensor(trigger,motion);if(wake.isHeld())wake.release();}
+    void release(){sensors.unregisterListener(pickup);if(motion!=null)sensors.cancelTriggerSensor(trigger,motion);if(wake.isHeld())wake.release();}
     public int onStartCommand(Intent i,int flags,int id){
         lastStart=id;
         watch();

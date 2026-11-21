@@ -24,6 +24,7 @@ public class Main extends Activity {
     }
     protected void onResume(){
         super.onResume();
+        if (Guard.armed(this)) startForegroundService(new Intent(this,Guard.class));
         getSharedPreferences("guard",0).registerOnSharedPreferenceChangeListener(modeListener);
         render();
     }

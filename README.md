@@ -20,7 +20,7 @@ AndroidRemoteGuard 使用 IPv4 网络为无人值守的 Android 设备提供远�
 
 ## 受控端权限
 
-- **AndroidGuardApp** 以普通应用身份运行。显著移动检测使用 Android 传感器接口；心跳、告警缓存和补传由应用完成。接收器上的 `android.permission.DUMP` 用于限制谁能向它发送指令。
+- **AndroidGuardApp** 以普通应用身份运行。布防时以约 10 Hz 采集加速度，检测拿起或倾斜，30 秒内合并重复的移动提醒。撤防后停止采样。加速度计不可用时尝试系统的显著移动传感器。心跳、告警缓存和补传由应用完成。接收器上的 `android.permission.DUMP` 用于限制谁能向它发送指令。
 - **AndroidGuardModule** 由 Magisk 以 root 身份运行。模块从内核输入设备读取实体按键，从电源驱动节点检测 USB 线缆在位状态及充电变化，再将事件交给应用。
 - **首次配对**也有权限要求。当前配对工具使用 root shell 将服务端证书、令牌和配置写入应用私有目录，并安装模块。因此，APK 的基础监控运行时无需 root，但本仓库提供的完整部署流程需要 root。
 
