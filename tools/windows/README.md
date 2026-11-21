@@ -1,6 +1,6 @@
 # Windows 可选工具
 
-服务端可独立完成部署。需要从另一台 Windows 电脑操作时，在本目录把 `config.example.json` 复制为 `config.local.json`。Windows 脚本从本目录读取配置。
+远控手机或访问管理页时，在本目录把 `config.example.json` 复制为 `config.local.json` 并填写连接信息。单独构建 APK 可以直接运行 `Build-App.ps1`。请备份首次生成的签名密钥，后续覆盖升级时使用同一密钥。
 
 | 入口 | 用途与依赖 |
 |---|---|

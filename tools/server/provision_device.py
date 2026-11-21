@@ -1,13 +1,14 @@
 """Run on the server after installing the app. Uses an already authorized rooted device."""
 import json
 import hashlib
+import os
 import shlex
 import subprocess
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
 config = json.loads((root/"config.local.json").read_text(encoding="utf-8-sig"))
-adb = str(root/"server/scrcpy/adb")
+adb = str(root/"server/scrcpy"/("adb.exe" if os.name == "nt" else "adb"))
 target = config["device_ip"]+":5555"
 subprocess.run([adb,"connect",target],check=True)
 cmd = [adb,"-s",target]

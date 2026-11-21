@@ -4,6 +4,7 @@ import os
 import sqlite3
 import ssl
 import subprocess
+import sys
 import threading
 import time
 import management
@@ -28,9 +29,12 @@ INSERT OR IGNORE INTO state VALUES(1,0,0,0);
 """)
 
 def queue_desktop(event_id,kind):
-    DB.execute("INSERT INTO desktop_alert(id,body) VALUES(?,?)",(event_id,NAMES[kind]))
+    if sys.platform == "darwin":
+        DB.execute("INSERT INTO desktop_alert(id,body) VALUES(?,?)",(event_id,NAMES[kind]))
 
 def wake_desktop():
+    if sys.platform != "darwin":
+        return
     (ROOT/"desktop-wake").touch()
     subprocess.Popen(["/usr/bin/open","-gj",str(ROOT.parent/"AndroidRemoteGuardAlerts.app")],
                      stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)

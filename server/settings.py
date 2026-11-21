@@ -1,9 +1,13 @@
-"""Deployment values shared with the Windows tools."""
+"""Server deployment settings."""
+import os
 import ipaddress
 import json
 from pathlib import Path
 
 config_file = Path(__file__).resolve().parent.parent / "config.local.json"
+TOOLS = config_file.parent / "server" / "scrcpy"
+ADB = str(TOOLS / ("adb.exe" if os.name == "nt" else "adb"))
+SCRCPY = str(TOOLS / ("scrcpy.exe" if os.name == "nt" else "scrcpy"))
 settings = json.loads(config_file.read_text(encoding="utf-8-sig"))
 DEVICE_NAME = settings["device_name"].strip()
 DEVICE_SERIAL = settings["device_serial"].strip()

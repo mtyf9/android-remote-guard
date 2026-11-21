@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 
 KEY_PATTERN = re.compile(r"sctp([0-9]+)t[A-Za-z0-9_-]+")
 HOST = "127.0.0.1:18762"
-from settings import DEVICE, DEVICE_NAME, DEVICE_SERIAL
+from settings import ADB, SCRCPY, TOOLS, DEVICE, DEVICE_NAME, DEVICE_SERIAL
 updates = threading.Condition()
 revision = secrets.randbits(50)
 push_wake = threading.Event()
@@ -133,7 +133,6 @@ def start(root, db, lock, names):
     mode_wake = threading.Event()
 
     def deliver_mode():
-        adb=str(Path(__file__).resolve().parent/"scrcpy"/"adb")
         while True:
             mode_wake.clear()
             with lock:
@@ -143,8 +142,8 @@ def start(root, db, lock, names):
                 continue
             request,enabled=cmd
             try:
-                subprocess.run([adb,"connect",DEVICE],capture_output=True,timeout=10,check=True)
-                target=[adb,"-s",DEVICE,"shell"]
+                subprocess.run([ADB,"connect",DEVICE],capture_output=True,timeout=10,check=True)
+                target=[ADB,"-s",DEVICE,"shell"]
                 model=subprocess.run(target+["getprop","ro.serialno"],capture_output=True,text=True,timeout=5,check=True)
                 if model.stdout.strip()==DEVICE_SERIAL:
                     subprocess.run(target+["am","broadcast","--user","0","-n","local.devicewatch.guard/.Keys",
@@ -164,18 +163,16 @@ def start(root, db, lock, names):
             if session and session.poll() is None:
                 remote_status = "远控窗口已在服务端桌面运行"
                 return
-            tools = Path(__file__).resolve().parent / "scrcpy"
-            adb = str(tools / "adb")
             try:
-                subprocess.run([adb,"connect",DEVICE],capture_output=True,timeout=12)
-                result = subprocess.run([adb,"-s",DEVICE,"shell","getprop","ro.serialno"],
+                subprocess.run([ADB,"connect",DEVICE],capture_output=True,timeout=12)
+                result = subprocess.run([ADB,"-s",DEVICE,"shell","getprop","ro.serialno"],
                                         capture_output=True,text=True,timeout=6)
                 if result.returncode or result.stdout.strip()!=DEVICE_SERIAL:
                     remote_status = "连接失败，请检查两端的 IPv4 连接 和受控端的 ADB 授权"
                     return
                 with (root / "scrcpy.log").open("wb") as log:
-                    session = subprocess.Popen([str(tools/"scrcpy"),"-s",DEVICE,"--no-audio","--no-power-on"],
-                        cwd=tools,env=dict(os.environ,ADB=adb),stdin=subprocess.DEVNULL,stdout=log,stderr=log)
+                    session = subprocess.Popen([SCRCPY,"-s",DEVICE,"--no-audio","--no-power-on"],
+                        cwd=TOOLS,env=dict(os.environ,ADB=ADB),stdin=subprocess.DEVNULL,stdout=log,stderr=log)
                 remote_status = "远控窗口已在服务端桌面运行"
             except (OSError,subprocess.TimeoutExpired):
                 remote_status = "启动失败，请检查服务端上的 scrcpy 和手机网络"
