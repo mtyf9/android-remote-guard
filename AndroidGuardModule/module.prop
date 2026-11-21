@@ -1,0 +1,6 @@
+id=devicewatch_keys
+name=AndroidRemoteGuard power key and USB
+version=1.4
+versionCode=5
+author=Local
+description=Monitor the physical power and navigation keys and USB cable, and log charging state transitions.
