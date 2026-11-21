@@ -29,7 +29,7 @@ do {
     Start-Sleep -Seconds 2
 } while ([DateTime]::UtcNow -lt $deadline)
 if ($serial -ne $config.device_serial) { throw '等待超时：受控端的网络 ADB 尚未就绪。' }
-$status = & $adb -s $target shell am broadcast --user 0 -n local.devicewatch.guard/.RemoteLock --es op challenge
+$status = & $adb -s $target shell am broadcast --receiver-foreground --user 0 -n local.devicewatch.guard/.RemoteLock --es op challenge
 if (($status -join " ") -match 'data="disabled"') {
     & $scrcpy -s $target
 } else {

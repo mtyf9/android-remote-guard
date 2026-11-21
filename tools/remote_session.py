@@ -29,16 +29,16 @@ if args == ["--pair"]:
 
 host, secret = json.loads(path.read_text()) if path.exists() else ("0"*32,"")
 
-def broadcast(op,proof=None):
-    cmd=base+["shell","am","broadcast","--user","0","-n","local.devicewatch.guard/.RemoteLock","--es","host",host,"--es","op",op]
+def broadcast(op,proof=None,timeout=6):
+    cmd=base+["shell","am","broadcast","--receiver-foreground","--user","0","-n","local.devicewatch.guard/.RemoteLock","--es","host",host,"--es","op",op]
     if proof:
         cmd+=["--es","proof",proof]
-    result=subprocess.run(cmd,capture_output=True,text=True,check=True,timeout=6)
+    result=subprocess.run(cmd,capture_output=True,text=True,check=True,timeout=timeout)
     match=re.search(r'data="([^"]*)"',result.stdout)
     return match[1] if match else ""
 
-def lease(op):
-    nonce=broadcast("challenge")
+def lease(op,challenge_timeout=6):
+    nonce=broadcast("challenge",timeout=challenge_timeout)
     if nonce=="disabled":
         return False
     if not secret or not re.fullmatch(r"[0-9a-f-]{36}",nonce):
@@ -48,7 +48,7 @@ def lease(op):
         raise RuntimeError("Second lock: authentication failed")
     return True
 
-leased=lease("open")
+leased=lease("open",challenge_timeout=30)
 child=None
 try:
     child=subprocess.Popen(args)
