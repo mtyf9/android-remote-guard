@@ -1,5 +1,5 @@
-$ErrorActionPreference = 'Stop'
-$config = Get-Content (Join-Path $PSScriptRoot 'config.local.json') -Raw | ConvertFrom-Json
+﻿$ErrorActionPreference = 'Stop'
+$config = Get-Content (Join-Path $PSScriptRoot 'config.local.json') -Encoding UTF8 -Raw | ConvertFrom-Json
 $sshArgs = @('-N','-o','BatchMode=yes','-o','ExitOnForwardFailure=yes','-L','127.0.0.1:18762:127.0.0.1:18762')
 if ($config.ssh_identity) { $sshArgs += @('-i',('"' + $config.ssh_identity + '"')) }
 $sshArgs += $config.ssh_host

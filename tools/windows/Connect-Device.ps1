@@ -1,5 +1,5 @@
-$ErrorActionPreference = 'Stop'
-$config = Get-Content (Join-Path $PSScriptRoot 'config.local.json') -Raw | ConvertFrom-Json
+﻿$ErrorActionPreference = 'Stop'
+$config = Get-Content (Join-Path $PSScriptRoot 'config.local.json') -Encoding UTF8 -Raw | ConvertFrom-Json
 $deviceIp = $config.device_ip
 $target = "${deviceIp}:5555"
 $scrcpy = (Get-Command scrcpy.exe).Source
@@ -17,11 +17,11 @@ do {
     if ($ready) {
         & $adb connect $target | Out-Null
         $devices = & $adb devices
-        if ($devices -contains "$target`tunauthorized") { throw '请在受控端 上批准本机的 ADB 密钥。' }
+        if ($devices -contains "$target`tunauthorized") { throw '请在受控端上批准本机的 ADB 密钥。' }
         if ($devices -contains "$target`tdevice") {
             $serial = & $adb -s $target shell getprop ro.serialno
             if ($LASTEXITCODE -eq 0) {
-                if ($serial -ne $config.device_serial) { throw '连接的设备序列号与受控端 不符。' }
+                if ($serial -ne $config.device_serial) { throw '连接的设备序列号与受控端不符。' }
                 break
             }
         }
