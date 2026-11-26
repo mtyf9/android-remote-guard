@@ -11,7 +11,7 @@ public class Main extends Activity {
     private void render() {
         LinearLayout box=new LinearLayout(this); box.setOrientation(1); box.setPadding(32,48,32,16);
         TextView info=new TextView(this);
-        info.setText(Guard.profile(this).optString("name","受控端")+" · "+(Guard.armed(this)?"已布防 · 心跳每分钟一次":"已撤防"));
+        info.setText(Guard.profile(this).optString("name","受控端")+" · "+(Guard.armed(this)?"已布防 · 心跳约两分钟一次":"已撤防"));
         box.addView(info);
         Button toggle=new Button(this); toggle.setText(Guard.armed(this)?"撤防":"布防"); box.addView(toggle);
         toggle.setOnClickListener(v->{

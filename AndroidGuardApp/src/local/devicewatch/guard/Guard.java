@@ -51,7 +51,29 @@ public class Guard extends Service {
             }
         }
     };
-    PowerManager.WakeLock wake;
+    AlarmManager alarms;
+    private final AlarmManager.OnAlarmListener heartbeat=new AlarmManager.OnAlarmListener(){
+        public void onAlarm(){
+            if(destroyed || !watching)return;
+            scheduleHeartbeat();
+            submitDelivery();
+        }
+    };
+    void scheduleHeartbeat(){
+        alarms.setExact(AlarmManager.ELAPSED_REALTIME_WAKEUP,SystemClock.elapsedRealtime()+120000,
+            "guard-heartbeat",heartbeat,null);
+    }
+    void submitDelivery(){
+        // Acquire before handing the alarm or sensor callback to the worker.
+        if(!flushScheduled.compareAndSet(false,true))return;
+        PowerManager.WakeLock delivery=getSystemService(PowerManager.class)
+            .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"AndroidRemoteGuard:delivery");
+        delivery.setReferenceCounted(false);
+        delivery.acquire(25000);
+        worker.execute(()->{
+            try{flush();}finally{flushScheduled.set(false);delivery.release();}
+        });
+    }
     boolean watching;
     volatile boolean destroyed;
     volatile int lastStart;
@@ -96,27 +118,33 @@ public class Guard extends Service {
             .setContentIntent(PendingIntent.getActivity(this,0,new Intent(this,Main.class),PendingIntent.FLAG_IMMUTABLE)).build());
         sensors=getSystemService(SensorManager.class);motion=sensors.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION);
         accelerometer=sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"AndroidRemoteGuard:monitor");
+        alarms=getSystemService(AlarmManager.class);
         pending=openOrCreateDatabase("outbox.db",MODE_PRIVATE,null);
         pending.execSQL("CREATE TABLE IF NOT EXISTS alerts(id TEXT UNIQUE NOT NULL, payload TEXT NOT NULL)");
         migrateQueue();
         new PinLock(this);
         watch();
-        worker.scheduleWithFixedDelay(this::flush,3,60,TimeUnit.SECONDS);
+        worker.schedule(this::flush,3,TimeUnit.SECONDS);
+        worker.scheduleWithFixedDelay(()->{if(!armed(this))flush();},120,120,TimeUnit.SECONDS);
     }
     void watch(){
         if(armed(this)==watching)return;
         watching=armed(this);
         if(watching){
-            wake.acquire();
+            scheduleHeartbeat();
             previousSample=0;
             movingSamples=0;
-            if(accelerometer!=null && sensors.registerListener(pickup,accelerometer,100000))return;
+            Sensor wakeSensor=sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER,true);
+            Sensor pickupSensor=wakeSensor!=null?wakeSensor:accelerometer;
+            if(pickupSensor!=null && sensors.registerListener(pickup,pickupSensor,100000,3000000)){
+                if(wakeSensor==null && motion!=null)sensors.requestTriggerSensor(trigger,motion);
+                return;
+            }
             if(motion==null||!sensors.requestTriggerSensor(trigger,motion))Log.w("AndroidRemoteGuard","Motion sensor unavailable");
         }else{release();}
     }
     String armedLockMode(){return PinLock.enabled(this)?"disable":"set";}
-    void release(){sensors.unregisterListener(pickup);if(motion!=null)sensors.cancelTriggerSensor(trigger,motion);if(wake.isHeld())wake.release();}
+    void release(){alarms.cancel(heartbeat);sensors.unregisterListener(pickup);if(motion!=null)sensors.cancelTriggerSensor(trigger,motion);}
     public int onStartCommand(Intent i,int flags,int id){
         lastStart=id;
         if(i!=null && i.hasExtra("pin_setup")){
@@ -147,9 +175,7 @@ public class Guard extends Service {
         last.put(kind,now);
         try {
             persist(message(kind).put("time",occurred/1000).put("occurred_ms",occurred).put("server_mode",serverMode));
-            if(flushScheduled.compareAndSet(false,true)) worker.execute(()->{
-                try { flush(); } finally { flushScheduled.set(false); }
-            });
+            submitDelivery();
         } catch(JSONException ex){Log.e("AndroidRemoteGuard","Queue error",ex);}
     }
     void persist(JSONObject event)throws JSONException {
