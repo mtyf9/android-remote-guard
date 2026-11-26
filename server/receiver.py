@@ -18,7 +18,7 @@ NAMES = {"pin_error": "第二层锁 PIN 输入错误", "armed": "已布防", "di
          "plug": "USB 供电线已接入", "unplug": "USB 供电线已断开", "screen_off": "屏幕已关闭",
          "home": "Home 键按下", "back": "返回键按下", "menu": "菜单或最近任务键按下",
          "power": "电源键按下", "test": "测试通知", "offline": "心跳超时，受控端 已离线",
-         "online": "心跳已恢复"}
+         "online": "心跳已恢复", "battery_low": "受控端电量过低", "battery_high": "受控端电量过高"}
 LOCK = threading.Lock()
 DB = sqlite3.connect(ROOT / "events.sqlite3", check_same_thread=False)
 DB.executescript("""
@@ -39,6 +39,23 @@ def wake_desktop():
     subprocess.Popen(["/usr/bin/open","-gj",str(ROOT.parent/"AndroidRemoteGuardAlerts.app")],
                      stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 
+def record_battery(msg, now):
+    level = msg["battery"]
+    if not 0 <= level <= 100:
+        return None
+    low,high,previous = DB.execute("SELECT low,high,zone FROM battery_settings WHERE id=1").fetchone()
+    zone = "battery_low" if level <= low else "battery_high" if level >= high else "normal"
+    DB.execute("INSERT OR REPLACE INTO latest VALUES(1,?,?)",(level,msg["powered"]))
+    DB.execute("UPDATE battery_settings SET sampled=?, zone=? WHERE id=1",(now,zone))
+    DB.execute("INSERT OR REPLACE INTO battery_history(sampled,level) VALUES(?,?)",(now,level))
+    DB.execute("DELETE FROM battery_history WHERE sampled<?",(now-86400,))
+    if zone == previous or zone == "normal":
+        return None
+    event_id = zone+"-"+str(time.time_ns())
+    DB.execute("INSERT INTO events VALUES(?,?,?,?,?,?)",(event_id,zone,msg["time"],now,level,msg["powered"]))
+    queue_desktop(event_id,zone)
+    return zone
+
 def record(msg):
     received_ms = time.time_ns() // 1000000
     now = received_ms // 1000
@@ -46,8 +63,10 @@ def record(msg):
     with LOCK, DB:
         _, armed, offline = DB.execute("SELECT last,armed,offline FROM state").fetchone()
         kind = msg["kind"]
-        DB.execute("INSERT OR REPLACE INTO latest VALUES(1,?,?)",(msg["battery"],msg["powered"]))
         if kind in ("heartbeat","mode_status"):
+            battery_notice = record_battery(msg,now)
+            if battery_notice:
+                notices.append(battery_notice)
             armed = int(msg["armed"])
             if isinstance(msg.get("mode_request"),str):
                 DB.execute("DELETE FROM mode_command WHERE slot=1 AND request=?",(msg["mode_request"],))
@@ -104,7 +123,7 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 2048:
                 raise ValueError()
             msg = json.loads(self.rfile.read(size))
-            if (msg["kind"] not in set(NAMES).difference({"offline","online"}) | {"heartbeat","mode_status"}
+            if (msg["kind"] not in set(NAMES).difference({"offline","online","battery_high","battery_low"}) | {"heartbeat","mode_status"}
                     or not isinstance(msg["id"], str) or not 1 <= len(msg["id"]) <= 64
                     or not all(type(msg[k]) is int for k in ("time","battery"))
                     or not all(type(msg[k]) is bool for k in ("powered","armed"))

@@ -34,6 +34,38 @@ def timeout_minutes(db):
     return db.execute("SELECT minutes FROM heartbeat_settings WHERE id=1").fetchone()[0]
 
 
+def battery_chart(samples, end):
+    if not samples:
+        return "<p>等待电量上报</p>"
+    start = end - 86400
+    left, right, top, bottom = 48, 740, 14, 160
+    svg = ['<svg viewBox="0 0 790 194" style="display:block;width:100%;min-width:480px" role="img" aria-label="最近24小时电量曲线">']
+    for level in (0, 25, 50, 75, 100):
+        y = bottom - (bottom-top)*level/100
+        svg.append(f'<path d="M{left} {y}H{right}" stroke="#dde5e4"/><text x="40" y="{y+4}" text-anchor="end" font-size="13">{level}%</text>')
+    for hours in (0, 6, 12, 18, 24):
+        x = left + (right-left)*hours/24
+        label = time.strftime("%H:%M", time.localtime(start+hours*3600))
+        svg.append(f'<text x="{x}" y="184" text-anchor="middle" font-size="13">{label}</text>')
+    segments = []
+    previous = None
+    for sampled, level in samples:
+        if previous is None or sampled-previous > 300:
+            segments.append([])
+        x = left + (right-left)*(sampled-start)/86400
+        y = bottom - (bottom-top)*level/100
+        segments[-1].append((x,y))
+        previous = sampled
+    for segment in segments:
+        if len(segment)==1:
+            x,y=segment[0]
+            svg.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="2.5" fill="#166c67"/>')
+        else:
+            points=" ".join(f"{x:.2f},{y:.2f}" for x,y in segment)
+            svg.append(f'<polyline points="{points}" fill="none" stroke="#166c67" stroke-width="2.5"/>')
+    return "".join(svg)+"</svg>"
+
+
 def stamp(value):
     if not value:
         return "—"
@@ -77,6 +109,12 @@ def start(root, db, lock, names):
       INSERT INTO push(id) VALUES(NEW.id);
     END;
     CREATE TABLE IF NOT EXISTS latest(id INTEGER PRIMARY KEY, battery INTEGER, powered INTEGER);
+    CREATE TABLE IF NOT EXISTS battery_settings(id INTEGER PRIMARY KEY,low INTEGER NOT NULL,high INTEGER NOT NULL,
+      zone TEXT NOT NULL,sampled INTEGER NOT NULL);
+    INSERT OR IGNORE INTO battery_settings VALUES(1,20,85,'normal',0);
+    CREATE TABLE IF NOT EXISTS battery_history(sampled INTEGER PRIMARY KEY, level INTEGER NOT NULL);
+    INSERT OR IGNORE INTO battery_history SELECT sampled,battery FROM latest JOIN battery_settings USING(id)
+      WHERE sampled>=strftime('%s','now')-86400 AND battery BETWEEN 0 AND 100;
     CREATE TABLE IF NOT EXISTS mode_command(slot INTEGER PRIMARY KEY, request TEXT NOT NULL,
         armed INTEGER NOT NULL CHECK(armed IN (0,1)));
     CREATE TABLE IF NOT EXISTS log_item(seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -218,6 +256,10 @@ def start(root, db, lock, names):
                 last,armed,offline = db.execute("SELECT last,armed,offline FROM state").fetchone()
                 pending_mode=db.execute("SELECT armed FROM mode_command WHERE slot=1").fetchone()
                 latest = db.execute("SELECT battery,powered FROM latest").fetchone()
+                low,high,zone,sampled = db.execute("SELECT low,high,zone,sampled FROM battery_settings WHERE id=1").fetchone()
+                chart_end = int(time.time())
+                samples = db.execute("SELECT sampled,level FROM battery_history WHERE sampled BETWEEN ? AND ? ORDER BY sampled",
+                                     (chart_end-86400,chart_end)).fetchall()
                 top,unread=db.execute("SELECT coalesce(max(seq),0),count(case when seen=0 then 1 end) FROM log_item WHERE cleared=0").fetchone()
                 rows = db.execute("""SELECT e.kind,e.device_time,e.received,e.battery,p.attempts,p.sent,p.error,l.seq,l.seen
                    FROM events e JOIN log_item l USING(id) LEFT JOIN push p USING(id)
@@ -244,18 +286,25 @@ def start(root, db, lock, names):
             if session and session.poll() is not None and connection=="远控窗口已在服务端桌面运行":
                 connection = "远控窗口已关闭" if session.returncode==0 else "远控已中断，请查看 scrcpy.log"
             battery = str(latest[0])+"%" if latest and latest[0]>=0 else "—"
+            supply = ("已接电" if latest[1] else "电池供电") if latest else ""
+            battery_warning = {"battery_low":" · 偏低","battery_high":" · 偏高"}.get(zone,"")
             key_status = "已配置" if keyfile.exists() else "待配置"
             page = f"""<!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
             <title>{html.escape(DEVICE_NAME)} · 布防</title><style>body{{font:16px system-ui;color:#142a33;background:#f4f7f6;max-width:990px;margin:5vh auto;padding:0 16px}}
             section{{background:white;padding:18px 22px;border-radius:12px;margin:16px 0;overflow:auto}}table{{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}}td,th{{padding:8px;text-align:left;border-bottom:1px solid #dde5e4;white-space:nowrap}}input,button{{font:inherit;padding:6px}}a{{color:#166c67}}</style>
             <style>.unread{{background:#e3f4ed;font-weight:600}}.actions{{display:flex;gap:1em;align-items:baseline;flex-wrap:wrap;margin-bottom:1em}}summary,button{{cursor:pointer}}</style>
             <meta name="revision" content="{version}"><script src="/refresh.js" defer></script>
-            <h1>{html.escape(DEVICE_NAME)} · 布防</h1><section id="state"><b>{online} ·受控端最近确认{'已布防' if armed else '已暂停'}</b>　电量 {battery}　最近上报 {stamp(last)}　<a href="/">刷新</a>
+            <h1>{html.escape(DEVICE_NAME)} · 布防</h1><section id="state"><b>{online} ·受控端最近确认{'已布防' if armed else '已暂停'}</b>　最近上报 {stamp(last)}　<a href="/">刷新</a>
+            <p><strong>最近电量 {battery}{battery_warning}</strong>　{supply}　电量更新时间 {stamp(sampled)}</p>
             <form method="post" action="/mode"><input type="hidden" name="csrf" value="{csrf}"><input type="hidden" name="armed" value="{next_mode}">
-            <button>{'开始布防' if next_mode else '暂停布防'}</button> {mode_notice}</form></section>
+            <button>{'开始布防' if next_mode else '暂停布防'}</button> {mode_notice}</form>
+            <h2>电量变化 · 最近 24 小时</h2>{battery_chart(samples,chart_end)}</section>
             <section><form method="post" action="/timeout"><input type="hidden" name="csrf" value="{csrf}">
             <label>心跳超时（分钟） <input type="number" min="1" max="1440" name="minutes" value="{minutes}" required></label>
-            <button>保存</button></form><p></p><form method="post" action="/connect"><input type="hidden" name="csrf" value="{csrf}">
+            <button>保存</button></form><p></p><form method="post" action="/battery"><input type="hidden" name="csrf" value="{csrf}">
+            <label>低电量 ≤ <input type="number" min="0" max="99" name="low" value="{low}" required>%</label>
+            <label>高电量 ≥ <input type="number" min="1" max="100" name="high" value="{high}" required>%</label>
+            <button>保存电量阈值</button></form><p></p><form method="post" action="/connect"><input type="hidden" name="csrf" value="{csrf}">
             <button>在服务端上远控受控端</button> {connection}</form></section>
             <section><h2>Server酱³</h2><p id="delivery">{key_status}　待发送 {waiting} 条</p><form method="post" action="/key">
             <input type="hidden" name="csrf" value="{csrf}"><label>SendKey <input name="key" type="password" autocomplete="off" required></label>
@@ -280,7 +329,7 @@ def start(root, db, lock, names):
                 self.send_response(204)
                 self.end_headers()
                 return
-            if self.path not in ("/mode","/key","/clear","/read","/read-all","/timeout","/connect") or self.headers.get("Host") != HOST or self.headers.get("Origin") != "http://"+HOST:
+            if self.path not in ("/mode","/key","/clear","/read","/read-all","/timeout","/battery","/connect") or self.headers.get("Host") != HOST or self.headers.get("Origin") != "http://"+HOST:
                 return self.send_error(403)
             try:
                 size = int(self.headers.get("Content-Length","0"))
@@ -298,6 +347,9 @@ def start(root, db, lock, names):
                 elif self.path=="/timeout":
                     minutes=int(form["minutes"][0])
                     if not 1<=minutes<=1440: raise ValueError()
+                elif self.path=="/battery":
+                    low,high=int(form["low"][0]),int(form["high"][0])
+                    if not 0<=low<high<=100: raise ValueError()
                 elif self.path!="/connect":
                     seq=int(form["seq"][0])
                     if not 0<=seq<2**63: raise ValueError()
@@ -312,6 +364,8 @@ def start(root, db, lock, names):
                     pass
                 elif self.path=="/timeout":
                     db.execute("UPDATE heartbeat_settings SET minutes=? WHERE id=1",(minutes,))
+                elif self.path=="/battery":
+                    db.execute("UPDATE battery_settings SET low=?,high=? WHERE id=1",(low,high))
                 elif self.path=="/clear":
                     db.execute("UPDATE log_item SET cleared=1,seen=1 WHERE seq<=?",(seq,))
                     db.execute("DELETE FROM events WHERE id IN (SELECT id FROM log_item WHERE cleared=1) AND id NOT IN (SELECT id FROM push WHERE sent=0)")
